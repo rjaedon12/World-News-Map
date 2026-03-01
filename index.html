@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World News Map 🌍</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    header {
+      background: #fff;
+      padding: 16px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+
+    header h1 { font-size: 1.6rem; }
+    header p  { font-size: 0.9rem; color: #666; margin-top: 4px; }
+
+    #map { width: 100%; height: 500px; }
+
+    #news-section {
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    #news-heading {
+      font-size: 1.2rem;
+      margin-bottom: 16px;
+    }
+
+    .article-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1);
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .article-card img {
+      width: 180px;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .article-card .text h3 {
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+
+    .article-card .text h3 a {
+      color: #1a73e8;
+      text-decoration: none;
+    }
+
+    .article-card .text h3 a:hover { text-decoration: underline; }
+
+    .article-card .meta {
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .article-card .description { font-size: 0.9rem; }
+
+    #status {
+      font-size: 0.95rem;
+      color: #555;
+      padding: 8px 0;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ccc;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* API key banner */
+    #api-banner {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+    }
+
+    #api-banner strong { color: #856404; }
+
+    #api-key-form { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+    #api-key-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    #api-key-btn {
+      padding: 6px 14px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    #api-key-btn:hover { background: #1558b0; }
+
+    @media (max-width: 600px) {
+      .article-card { flex-direction: column; }
+      .article-card img { width: 100%; height: 180px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🌍 World News Map</h1>
+  <p>Click any country on the map to load its top headlines.</p>
+</header>
+
+<div id="map"></div>
+
+<section id="news-section">
+
+  <!-- API key banner -->
+  <div id="api-banner">
+    <strong>⚠ GNews API key required.</strong>
+    Enter your free API key from
+    <a href="https://gnews.io/" target="_blank">gnews.io</a>
+    to load headlines. The key is stored only in your browser's local storage.
+    <div id="api-key-form">
+      <input id="api-key-input" type="text" placeholder="Paste your GNews API key here" />
+      <button id="api-key-btn">Save key</button>
+    </div>
+  </div>
+
+  <div id="news-heading">🗞 Top headlines for: <strong id="country-label">United States (US)</strong></div>
+  <div id="status"></div>
+  <div id="articles"></div>
+</section>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  // ── API key management ──────────────────────────────────────────────────────
+  const KEY_STORAGE = "gnews_api_key";
+
+  function getApiKey() {
+    return localStorage.getItem(KEY_STORAGE) || "";
+  }
+
+  function saveApiKey(key) {
+    localStorage.setItem(KEY_STORAGE, key.trim());
+  }
+
+  const apiKeyInput = document.getElementById("api-key-input");
+  const apiKeyBtn   = document.getElementById("api-key-btn");
+  const apiBanner   = document.getElementById("api-banner");
+
+  // Pre-fill if already saved
+  const savedKey = getApiKey();
+  if (savedKey) {
+    apiKeyInput.value = savedKey;
+    apiBanner.style.display = "none";
+  }
+
+  apiKeyBtn.addEventListener("click", () => {
+    const val = apiKeyInput.value.trim();
+    if (!val) { alert("Please enter a valid API key."); return; }
+    saveApiKey(val);
+    apiBanner.style.display = "none";
+    fetchNews(currentCountryCode, currentCountryName);
+  });
+
+  // ── State ───────────────────────────────────────────────────────────────────
+  let currentCountryCode = "us";
+  let currentCountryName = "United States";
+  let marker = null;
+
+  // ── Map ─────────────────────────────────────────────────────────────────────
+  const map = L.map("map").setView([20, 0], 2);
+
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: "abcd",
+    maxZoom: 19,
+  }).addTo(map);
+
+  // ── Reverse geocode via Nominatim ───────────────────────────────────────────
+  async function reverseGeocode(lat, lon) {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+    const resp = await fetch(url, {
+      headers: {
+        "Accept-Language": "en",
+        "User-Agent": "WorldNewsMap/1.0 (https://github.com/rjaedon12/World-News-Map)"
+      }
+    });
+    if (!resp.ok) throw new Error("Nominatim error " + resp.status);
+    const data = await resp.json();
+    const cc   = (data.address?.country_code || "").toLowerCase();
+    const name = data.address?.country || cc.toUpperCase();
+    return { cc, name };
+  }
+
+  // ── GNews fetch ─────────────────────────────────────────────────────────────
+  async function fetchNews(countryCode, countryName) {
+    const articlesEl = document.getElementById("articles");
+    const statusEl   = document.getElementById("status");
+
+    articlesEl.innerHTML = "";
+    statusEl.innerHTML   = `<span class="spinner"></span> Fetching news for ${countryName}…`;
+
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      statusEl.textContent = "⚠ No API key set. Enter your GNews API key above.";
+      apiBanner.style.display = "";
+      return;
+    }
+
+    const url = new URL("https://gnews.io/api/v4/top-headlines");
+    url.searchParams.set("country",  countryCode);
+    url.searchParams.set("token",    apiKey);
+    url.searchParams.set("category", "general");
+    url.searchParams.set("language", "en");
+    url.searchParams.set("max",      "3");
+
+    try {
+      const resp = await fetch(url.toString());
+      if (!resp.ok) {
+        const errText = await resp.text();
+        statusEl.textContent = `GNews error ${resp.status}: ${errText}`;
+        return;
+      }
+      const data     = await resp.json();
+      const articles = data.articles || [];
+
+      statusEl.textContent = "";
+
+      if (!articles.length) {
+        articlesEl.innerHTML =
+          `<p>No articles found. This country may not be supported by GNews, or your API key is invalid.</p>`;
+        return;
+      }
+
+      articles.forEach(article => {
+        const card = document.createElement("div");
+        card.className = "article-card";
+
+        const imgHtml = article.image
+          ? `<img src="${escHtml(article.image)}" alt="article image" loading="lazy" />`
+          : "";
+
+        const source      = article.source?.name || "Unknown";
+        const publishedAt = (article.publishedAt || "").slice(0, 10);
+        const title       = escHtml(article.title || "No title");
+        const articleUrl  = escHtml(article.url || "#");
+        const description = escHtml(article.description || "");
+
+        card.innerHTML = `
+          ${imgHtml}
+          <div class="text">
+            <h3><a href="${articleUrl}" target="_blank" rel="noopener">${title}</a></h3>
+            <div class="meta">📰 ${escHtml(source)} &nbsp;•&nbsp; 📅 ${escHtml(publishedAt)}</div>
+            <div class="description">${description}</div>
+          </div>`;
+
+        articlesEl.appendChild(card);
+      });
+
+    } catch (err) {
+      statusEl.textContent = `Request failed: ${err.message}`;
+    }
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ── Map click handler ───────────────────────────────────────────────────────
+  map.on("click", async (e) => {
+    const { lat, lng } = e.latlng;
+    const statusEl = document.getElementById("status");
+
+    // Place / update marker
+    if (marker) {
+      marker.setLatLng([lat, lng]);
+    } else {
+      marker = L.marker([lat, lng], {
+        icon: L.icon({
+          iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+          shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+          iconSize:   [25, 41],
+          iconAnchor: [12, 41],
+        })
+      }).addTo(map);
+    }
+
+    statusEl.innerHTML = `<span class="spinner"></span> Detecting country…`;
+    document.getElementById("articles").innerHTML = "";
+
+    try {
+      const { cc, name } = await reverseGeocode(lat, lng);
+      if (!cc) {
+        statusEl.textContent = "Could not determine country from that location.";
+        return;
+      }
+      currentCountryCode = cc;
+      currentCountryName = name;
+
+      marker.bindTooltip(name).openTooltip();
+      document.getElementById("country-label").textContent = `${name} (${cc.toUpperCase()})`;
+
+      fetchNews(cc, name);
+    } catch (err) {
+      statusEl.textContent = `Reverse geocode failed: ${err.message}`;
+    }
+  });
+
+  // ── Initial load ────────────────────────────────────────────────────────────
+  fetchNews(currentCountryCode, currentCountryName);
+</script>
+
+</body>
+</html>
