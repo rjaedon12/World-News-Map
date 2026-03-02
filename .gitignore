@@ -1,0 +1,11 @@
+# Streamlit secrets (contains real API keys – never commit)
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+
+# macOS
+.DS_Store

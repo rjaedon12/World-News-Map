@@ -30,6 +30,15 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Inject GNews API key
+        env:
+          GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
+        run: |
+          if [ -n "$GNEWS_API_KEY" ]; then
+            # Escape any sed-special characters in the key before substitution
+            ESCAPED_KEY=$(printf '%s' "$GNEWS_API_KEY" | sed 's/[[\.*^$()+?{|]/\\&/g')
+            sed -i "s|__GNEWS_API_KEY__|${ESCAPED_KEY}|g" index.html
+          fi
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
