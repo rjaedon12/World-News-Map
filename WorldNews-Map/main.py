@@ -48,7 +48,7 @@ def get_news(country_code: str):
             "https://gnews.io/api/v4/top-headlines",
             params={
                 "country":  country_code,
-                "token":    "your_api_key_here",
+                "token":    "375aa2b2d418e57fa443ba82b5a829db",
                 "category": "general",
                 "language": "en",        # MUST be "en", not "English"
                 "max":      1,           # integer, not string → 3 tokens
