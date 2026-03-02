@@ -152,10 +152,11 @@
 
   <!-- API key banner -->
   <div id="api-banner">
-    <strong>⚠ GNews API key required.</strong>
-    Enter your free API key from
+    <strong>🔑 Demo API key pre-loaded.</strong>
+    A demo GNews API key is already set so you can test the map right away.
+    You can replace it with your own free key from
     <a href="https://gnews.io/" target="_blank">gnews.io</a>
-    to load headlines. The key is stored only in your browser's local storage.
+    — it will be stored only in your browser's local storage.
     <div id="api-key-form">
       <input id="api-key-input" type="text" placeholder="Paste your GNews API key here" />
       <button id="api-key-btn">Save key</button>
@@ -173,9 +174,10 @@
 <script>
   // ── API key management ──────────────────────────────────────────────────────
   const KEY_STORAGE = "gnews_api_key";
+  const DEMO_API_KEY = "375aa2b2d418e57fa443ba82b5a829db";
 
   function getApiKey() {
-    return localStorage.getItem(KEY_STORAGE) || "";
+    return localStorage.getItem(KEY_STORAGE) || DEMO_API_KEY;
   }
 
   function saveApiKey(key) {
@@ -186,12 +188,10 @@
   const apiKeyBtn   = document.getElementById("api-key-btn");
   const apiBanner   = document.getElementById("api-banner");
 
-  // Pre-fill if already saved
-  const savedKey = getApiKey();
-  if (savedKey) {
-    apiKeyInput.value = savedKey;
-    apiBanner.style.display = "none";
-  }
+  // Pre-fill input: use saved key if available, otherwise show demo key
+  const savedKey = localStorage.getItem(KEY_STORAGE);
+  apiKeyInput.value = savedKey || DEMO_API_KEY;
+  if (savedKey) apiBanner.style.display = "none";
 
   apiKeyBtn.addEventListener("click", () => {
     const val = apiKeyInput.value.trim();
