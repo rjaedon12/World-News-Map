@@ -34,24 +34,24 @@ def coords_to_country(lat: float, lon: float):
 
 # ── GNews API helper ──────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
-def get_news(country_code: str):
+def get_news(country_code: str, api_key: str):
     """
     Fetch top headlines from GNews for a given ISO-3166-1 alpha-2 country code.
     Cached – API called ONCE per unique country until server restarts.
     Token cost: 1 token per article returned.  max=3 → 3 tokens per new country.
     Repeated clicks on the same country cost 0 (served from cache).
     """
-    if not country_code:
+    if not country_code or not api_key:
         return []
     try:
         response = requests.get(
             "https://gnews.io/api/v4/top-headlines",
             params={
                 "country":  country_code,
-                "token":    "375aa2b2d418e57fa443ba82b5a829db",
+                "token":    api_key,
                 "category": "general",
                 "language": "en",        # MUST be "en", not "English"
-                "max":      1,           # integer, not string → 3 tokens
+                "max":      1,           # 1 article per request
             },
             timeout=10,
         )
@@ -65,6 +65,20 @@ def get_news(country_code: str):
         st.error(f"Request failed: {e}")
         return []
 
+
+# ── API key ───────────────────────────────────────────────────────────────────
+# Read from Streamlit secrets when deployed; fall back to a sidebar text input.
+_secret_key = st.secrets.get("GNEWS_API_KEY", "")
+
+if _secret_key:
+    gnews_api_key = _secret_key
+else:
+    gnews_api_key = st.sidebar.text_input(
+        "🔑 GNews API key",
+        type="password",
+        placeholder="Paste your free key from gnews.io",
+        help="Get a free API key at https://gnews.io/",
+    )
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "country_code" not in st.session_state:
@@ -114,7 +128,11 @@ country_name = st.session_state.country_name
 st.subheader(f" Top headlines for: **{country_name}** (`{country_code.upper()}`)")
 
 with st.spinner(f"Fetching news for {country_name}…"):
-    articles = get_news(country_code)
+    if not gnews_api_key:
+        st.warning("⚠️ Please enter your GNews API key in the sidebar to load headlines.")
+        articles = []
+    else:
+        articles = get_news(country_code, gnews_api_key)
 
 if not articles:
     st.info("No articles found. This country may not be supported by GNews, or your API key is invalid.")
